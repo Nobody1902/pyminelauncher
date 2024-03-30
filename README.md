@@ -1,6 +1,6 @@
 # Pyminelauncher
 
-- Minecraft launcher with full mod support.
+- Minecraft launcher with full mod support and multiple instances
 
 
 ## Build
