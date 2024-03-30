@@ -1,0 +1,4 @@
+*.zip 
+*.mrpack
+__pycache__
+.minecraft
