@@ -7,9 +7,10 @@ import socket
 import mrpack
 import shutil
 import pathlib
-import curseforge
+import networkutils
+import asyncio
 
-def internet_on(host="8.8.8.8", port=53, timeout=3):
+def internet_on(host="8.8.8.8", port=53, timeout=2):
     """
     Host: 8.8.8.8 (google-public-dns-a.google.com)
     OpenPort: 53/tcp
@@ -55,9 +56,6 @@ class Wrapper:
 
     OFFLINE_MODE = False
 
-    def check_internet(self):
-        self.__init__(self.LAUNCHER_NAME, self.LAUNCHER_VERSION, self.MINECRAFT_DIRECTORY, silent=True)
-
     def get_status(status:dict):
         # os.system('cls' if os.name == 'nt' else 'clear')
         print(status)
@@ -86,10 +84,10 @@ class Wrapper:
         self.fabric_versions_file = os.path.join(self.MINECRAFT_DIRECTORY, "fabric_versions.json")
         self.quilt_versions_file = os.path.join(self.MINECRAFT_DIRECTORY, "quilt_versions.json")
 
+    async def load(self):
         # if there is internet download version jsons otherwise load in the versions
         if not internet_on():
-            if not silent:
-                print("There is no internet.\nLaunching offline mode...")
+            print("There is no internet.\nLaunching offline mode...")
             
             with open(self.versions_file, "r") as f:
                 versions = json.loads(f.read())
@@ -118,15 +116,26 @@ class Wrapper:
 
             return
 
+        # Get versions, forge_versions, fabric_versions and quilt_versions
+        versions_task = asyncio.create_task(self.get_versions())
+        forge_versions_task = asyncio.create_task(self.get_forge_versions())
+        fabric_versions_task = asyncio.create_task(self.get_fabric_versions())
+        quilt_versions_task = asyncio.create_task(self.get_quilt_versions())
+
+        results = await asyncio.gather(versions_task, forge_versions_task, fabric_versions_task, quilt_versions_task)
+
+        versions = results[0]
+        forge_versions = results[1]
+        fabric_versions = results[2]
+        quilt_versions = results[3]
+
         # Write the versions
-        versions = self.get_versions()
         self.VERSIONS = versions["versions"]
         self.LATEST_VERSION = versions["latest"]
         with open(self.versions_file, "w") as f:
             f.write(json.dumps(versions, indent=4))
         
         # Write forge versions
-        forge_versions = self.get_forge_versions()
         self.FORGE_VERSIONS = forge_versions["versions"]
         self.FORGE_LATEST_VERSIONS = forge_versions["latest"]
         self.FORGE_RECOMMENDED_VERSIONS = forge_versions["recommended"]
@@ -135,7 +144,6 @@ class Wrapper:
         
         
         # Write fabric versions
-        fabric_versions = self.get_fabric_versions()
         self.FABRIC_VERSIONS = fabric_versions["versions"]
         self.FABRIC_LOADER_VERSIONS = fabric_versions["loader_versions"]
         self.FABRIC_LATEST_LOADER = fabric_versions["latest_loader"]
@@ -144,16 +152,13 @@ class Wrapper:
         
         
         # Write quilt versions
-        quilt_versions = self.get_quilt_versions()
         self.QUILT_VERSIONS = quilt_versions["versions"]
         self.QUILT_LOADER_VERSIONS = quilt_versions["loader_versions"]
         self.QUILT_LATEST_LOADER = quilt_versions["latest_loader"]
         with open(self.quilt_versions_file, "w") as f:
             f.write(json.dumps(quilt_versions, indent=4))
 
-        
-
-    def get_versions(self)->dict[str, list[str]|str]:
+    async def get_versions(self)->dict[str, list[str]|str]:
         versions = []
 
         for version in minecraft_launcher_lib.utils.get_version_list():
@@ -162,8 +167,8 @@ class Wrapper:
 
         return {"versions":versions, "latest":minecraft_launcher_lib.utils.get_latest_version()["snapshot"]}
 
-    def get_forge_versions(self)->dict[str,dict[str, str]]:
-        forge_versions_json = json.loads(requests.get(FORGE_VERSIONS_URL).text)
+    async def get_forge_versions(self)->dict[str,dict[str, str]]:
+        forge_versions_json = json.loads(await networkutils.get_file_contents_async(FORGE_VERSIONS_URL))
 
         latest = {}
         recommended = {}
@@ -186,7 +191,7 @@ class Wrapper:
 
         return {"versions":versions, "latest":latest, "recommended":recommended}
 
-    def get_fabric_versions(self)->dict[str, list[str]|str]:
+    async def get_fabric_versions(self)->dict[str, list[str]|str]:
         stable = minecraft_launcher_lib.fabric.get_stable_minecraft_versions()
         versions = []
 
@@ -200,7 +205,7 @@ class Wrapper:
         stable.extend(versions)
         return {"versions":stable, "loader_versions":loader_versions, "latest_loader":latest_loader}
     
-    def get_quilt_versions(self)->dict[str, list[str]|str]:
+    async def get_quilt_versions(self)->dict[str, list[str]|str]:
         stable = minecraft_launcher_lib.quilt.get_stable_minecraft_versions()
         versions = []
 
@@ -227,12 +232,18 @@ class Wrapper:
             "setProgress": self._set_progress,
             "setMax": self._set_max
         }
-        if self.is_installed(vannila_version):
-            print(f"Version {vannila_version} already installed.")
-            return
 
         if not vannila_version in self.VERSIONS:
             print(f"Version {vannila_version} doesn't exist.")
+            return
+        
+        if self.is_installed(vannila_version):
+            print(f"Version {vannila_version} already installed.")
+            return vannila_version
+        
+        if self.OFFLINE_MODE:
+            print("Cannot download version without internet.")
+            return
 
         minecraft_launcher_lib.install.install_minecraft_version(vannila_version, self.MINECRAFT_DIRECTORY, callback=callback)
         return vannila_version
@@ -258,8 +269,7 @@ class Wrapper:
 
         if self.OFFLINE_MODE:
             print("Cannot download version without internet.")
-            self.check_internet()
-            return f"{vannila_version}-forge-{forge_version}"
+            return
 
         minecraft_launcher_lib.forge.install_forge_version(f"{vannila_version}-{forge_version}", self.MINECRAFT_DIRECTORY, callback)
         return f"{vannila_version}-forge-{forge_version}"
@@ -284,13 +294,13 @@ class Wrapper:
         if fabric_loader:
             fabric_installer_version = fabric_loader
 
-        if self.OFFLINE_MODE:
-            print("Cannot download version without internet.")
-            return f"fabric-loader-{fabric_installer_version}-{vannila_version}"
-
         if self.is_installed(f"fabric-loader-{fabric_installer_version}-{vannila_version}"):
             print(f"Version fabric-loader-{fabric_installer_version}-{vannila_version} already installed.")
             return f"fabric-loader-{fabric_installer_version}-{vannila_version}"
+        
+        if self.OFFLINE_MODE:
+            print("Cannot download version without internet.")
+            return
 
         minecraft_launcher_lib.fabric.install_fabric(vannila_version, self.MINECRAFT_DIRECTORY, fabric_installer_version, callback=callback)
         return f"fabric-loader-{fabric_installer_version}-{vannila_version}"
@@ -318,6 +328,10 @@ class Wrapper:
         if self.is_installed(f"quilt-loader-{quilt_installer_version}-{vannila_version}"):
             print(f"Version quilt-loader-{quilt_installer_version}-{vannila_version} already installed.")
             return f"quilt-loader-{quilt_installer_version}-{vannila_version}"
+
+        if self.OFFLINE_MODE:
+            print("Cannot download version without internet.")
+            return
 
         minecraft_launcher_lib.quilt.install_quilt(vannila_version, self.MINECRAFT_DIRECTORY, quilt_installer_version, callback=callback)
         return f"quilt-loader-{quilt_installer_version}-{vannila_version}"
@@ -366,8 +380,10 @@ class Wrapper:
             "setProgress": self._set_progress,
             "setMax": self._set_max
         }
-        
-        version_info = curseforge.install_modpack(file, install_path, callback=callback)
+
+        print("Currently not supported.")
+        return
+        # version_info = curseforge.install_modpack(file, install_path, callback=callback)
 
         minecraft_version = version_info[0]
         mod_loader = version_info[1][0]

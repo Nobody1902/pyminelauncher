@@ -3,6 +3,7 @@ import os
 import sys
 import json
 import shutil
+import asyncio
 
 from wrapper import Wrapper
 
@@ -26,25 +27,48 @@ def print_status(wrapper:dict):
     delete_last_line()
 
 class Launcher:
-    LAUNCHER_NAME = "PYLauncher"
-    LAUNCHER_VERSION = "1.0"
+    LAUNCHER_NAME:str
+    LAUNCHER_VERSION:str
 
     MINECRAFT_DIRECTORY:str
     PROFILES_DIRECTORY:str
 
     _wrapper: Wrapper
 
-    def __init__(self, minecraft_directory:str=path.join(path.curdir, ".minecraft")) -> None:
+    def __init__(self, minecraft_directory:str=path.join(path.curdir, ".minecraft"), launcher_name:str="PYLauncher", launcher_version:str="1.0") -> None:
+        self.LAUNCHER_NAME = launcher_name
+        self.LAUNCHER_VERSION = launcher_version
+        
         self.MINECRAFT_DIRECTORY = minecraft_directory
+    
+    async def load(self):
         os.makedirs(self.MINECRAFT_DIRECTORY, exist_ok=True)
 
         self.PROFILES_DIRECTORY = path.join(self.MINECRAFT_DIRECTORY, "profiles")
         os.makedirs(self.PROFILES_DIRECTORY, exist_ok=True)
 
         self._wrapper = Wrapper(self.LAUNCHER_NAME, self.LAUNCHER_VERSION, self.MINECRAFT_DIRECTORY)
+        await self._wrapper.load()
 
         self._wrapper.get_status = print_status
     
+    # Helper methods
+    def get_versions(self)->list[str]:
+        return self._wrapper.VERSIONS
+
+    def get_forge_supported_versions(self)->list[str]:
+        return self._wrapper.FORGE_VERSIONS.keys()
+
+    def get_forge_version(self, version_id)->str:
+        return self._wrapper.FORGE_VERSIONS[version_id]
+    
+    def get_fabric_supported_versions(self)->list[str]:
+        return self._wrapper.FABRIC_VERSIONS
+
+    def get_quilt_supported_versions(self)->list[str]:
+        return self._wrapper.FABRIC_VERSIONS
+    
+    # Main methods
     def download_version(self, version_id:str)->str:
         if "*" in version_id:
             if "fabric" in version_id:
@@ -74,6 +98,10 @@ class Launcher:
 
         # download the version if not jet installed
         version_name = self.download_version(version_id)
+
+        if version_name == None:
+            print("Couldn't create profile")
+            return
         
         os.makedirs(profile_path, exist_ok=overwrite)
         os.makedirs(path.join(profile_path, "game"), exist_ok=True)
@@ -123,7 +151,7 @@ class Launcher:
         
         shutil.rmtree(profile_path)
 
-        print("Deleted successfully.")
+        print(f"Profile '{profile}' deleted successfully.")
 
     def get_profile(self, profile:str)->dict[str,str]:
         profile_path = path.join(self.PROFILES_DIRECTORY, profile)
@@ -184,6 +212,11 @@ class Launcher:
         os.makedirs(game_directory, exist_ok=True)
 
         version_name = self._wrapper.download_curseforge_pack(curseforge_zip, game_directory)
+
+        if version_name == None:
+            print("Failed to create profile.")
+            shutil.rmtree(profile_path)
+            return
         
         profile_data = {
             "profile_name": profile_name,
