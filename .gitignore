@@ -2,3 +2,4 @@
 *.mrpack
 __pycache__
 .minecraft
+build

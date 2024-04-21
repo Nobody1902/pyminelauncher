@@ -1,6 +1,6 @@
 from profile_launcher import Launcher
 import sys
-from distutils.util import strtobool
+from setuptools._distutils.util import strtobool
 import asyncio
 
 LAUNCHER_NAME = "PyMineLauncher"
@@ -55,7 +55,7 @@ async def main():
         mode = args[0]
     except:
         print("No arguments provided.\nType 'help' for more information.")
-        exit()
+        sys.exit()
 
     arg1 = None
     arg2 = None
@@ -73,7 +73,7 @@ async def main():
             print_help(arg1)
         else:
             print_help()
-        exit()
+        sys.exit()
 
     launcher = Launcher(launcher_name=LAUNCHER_NAME, launcher_version=LAUNCHER_VERSION)
     await launcher.load()
@@ -102,7 +102,7 @@ async def main():
         # check if both mrpack and profile name are set
         if not arg1 or not arg2:
             print_arguments_error(mode)
-            exit()
+            sys.exit()
         
         overwrite = False
 
@@ -122,7 +122,7 @@ async def main():
         # check if both curseforge and profile name are set
         if not arg1 or not arg2:
             print_arguments_error(mode)
-            exit()
+            sys.exit()
         
         overwrite = False
 
@@ -158,7 +158,7 @@ async def main():
                 print(v)
             except:
                 print(f"Version '{version}' either doesn't exist or isn't supported by forge.")
-                exit()
+                sys.exit()
     elif mode == "fabric":
         versions = launcher.get_fabric_supported_versions()
         for v in versions:
@@ -172,7 +172,7 @@ async def main():
     elif mode == "profile":
         if not arg1:
             print_arguments_error(mode)
-            exit()
+            sys.exit()
         
         profile_name = arg1
 
@@ -188,7 +188,7 @@ async def main():
     elif mode == "delete":
         if not arg1:
             print_arguments_error(mode)
-            exit()
+            sys.exit()
         
         profile_name = arg1
 
@@ -198,7 +198,7 @@ async def main():
         # check if both profile name and username are set
         if not arg1 or not arg2:
             print_arguments_error(mode, not arg1)
-            exit()
+            sys.exit()
         
         profile_name = arg1
         username = arg2

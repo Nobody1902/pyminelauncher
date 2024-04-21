@@ -2,3 +2,4 @@ aiofiles==23.2.1
 aiohttp==3.9.3
 minecraft_launcher_lib==6.4
 Requests==2.31.0
+setuptools==69.5.1
