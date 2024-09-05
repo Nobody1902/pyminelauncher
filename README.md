@@ -1,4 +1,4 @@
-# PyMineLauncher
+# Pyminelauncher
 
 - Minecraft launcher with full moded support and multiple instances.
 - Currently curseforge modpacks are disabled due to stability issues.
