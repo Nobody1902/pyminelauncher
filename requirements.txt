@@ -1,5 +1,5 @@
-aiofiles==23.2.1
-aiohttp==3.9.4
-minecraft_launcher_lib==6.4
-Requests==2.32.0
+aiofiles>=23.2.1
+aiohttp>=3.9.4
+minecraft_launcher_lib>=6.4
+Requests>=2.32.0
 setuptools>=70.0.0
