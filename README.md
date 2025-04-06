@@ -8,4 +8,4 @@
 ## Build
 
 - Run `pip install -r requirements.txt`
-- Then run `python main.py`
+- Then run `python pml.py`
